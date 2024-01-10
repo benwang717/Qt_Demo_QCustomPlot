@@ -142,7 +142,7 @@ void MainWindow::drawOneHourUrineVolumeCurve(QString userIdStr)//绘制柱状图
 
     yAxis->setRange(0, ui->CustomPlot->height());
     yAxis->setPadding(35);             // 轴的内边距，可以到QCustomPlot之开始（一）看图解
-    yAxis->setLabel("Power Consumption in\nKilowatts per Capita (2007)");
+    yAxis->setLabel("OneHourUrineVolume\nLexin Tec");
     yAxis->setUpperEnding(QCPLineEnding::esSpikeArrow);
     bars->setData(x, y);
 
@@ -157,11 +157,15 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     int i = 0;
     QVector<double> x, y;
     QVector<QString> labels;
+    int y_max = 0;
     while (m_queryUrinaryBagWeightRecord.next())
     {
         if(userIdStr == m_queryUrinaryBagWeightRecord.value(1).toString()){
             x.append(i + 1);
             y.append(m_queryUrinaryBagWeightRecord.value(2).toDouble());
+            if(y_max < m_queryUrinaryBagWeightRecord.value(2).toDouble()){
+                y_max = m_queryUrinaryBagWeightRecord.value(2).toDouble();
+            }
             labels.append(m_queryUrinaryBagWeightRecord.value(2).toString());
             i++;
         }
@@ -231,7 +235,8 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     //设置X轴坐标范围
     xAxis->setRange(0,x.size() + 1);
     //设置Y轴坐标范围
-    yAxis->setRange(0, customPlot->height());
+    yAxis->setRange(0, y_max);
+    // yAxis->setRange(0, customPlot->height());
     //在坐标轴右侧和上方画线，和X/Y轴一起形成一个矩形
     customPlot->axisRect()->setupFullAxesBox();
 
