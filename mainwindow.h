@@ -6,12 +6,13 @@
  * @brief QCustomPlot功能接口练习
  * @author 王宾
  * @date 创建时间 2024-1-5
- * @version 1.0
+ * @version V1.0.0.2
  * @property 引言:这里通过分析一张数据库表, 练习QCustomPlot的各种功能接口
  * (数据源的获取形式不一,我这里用的数据库文件分析,用网络接口等方式做绘图亦可,这里数据获取逻辑就不再赘述)
  *
  *  已实现功能:
  *      重置绘图\绘图位置修正[复位](√), 绘图清空(√), 自适应区域绘制(√),游标(x),图形标记选中(√),另存为图片(x)
+ *      (另:一些不基于QCustomPlot的图表生成)
 
     1.引入QCustomPlot库, 这里需要从QCustomPlot的官网中下载.
     2.生成QCustomPlot动态库,这里的目的是为了在调用QCustomPlot库的时候提升代码的执行效率.
@@ -40,13 +41,14 @@
             4.1.4折线图的复位功能(窗口自适应)
             4.1.5折线图的清空功能
 
-    5.动态波形图(待补充),根据动态接口响应的数据,实时变化波形图曲线
+    5.动态绘图(待补充),根据动态接口返回的数据,实时变化的显示绘图曲线
 
 
  *
  */
 
 
+#include "curvetracer.h"
 
 #include <QMainWindow>
 #include <QSqlQuery>
@@ -75,15 +77,20 @@ private slots:
 
     void on_clearBtn_clicked();//清除按钮(柱状图)  3.1.2
 
+    void showTracer(QMouseEvent* event);//游标功能    4.1.3
+
     void on_resetBtn_2_clicked();//复位按钮(折线图)    4.1.4
 
     void on_clearBtn_2_clicked();//清除按钮(折线图)    4.1.5
+
 
 private:
     Ui::MainWindow *ui;
     QSqlDatabase m_database;//初始化数据库
     QSqlQuery m_queryUser,m_queryOneHourUrineVolume,m_queryUrinaryBagWeightRecord;//查询表[用户表][一小时尿量表][尿袋重量表]
     QString m_userIdStr;//获取数据库表中用户的id
+    QSharedPointer<CurveTracer> m_TraserX, m_TracerY;
+    QStandardItemModel *m_oneHourTableWidetModel; //一小时数据的图表
 
 
     void initDatabase(QString path);//初始化数据库
@@ -94,6 +101,14 @@ private:
     void drawOneHourUrineVolumeCurve(QString userIdStr);//绘制一小时尿流率柱状图 [3.]
     void drawUrinaryBagWeight(QString userIdStr);//绘制尿袋重量折线图 [4.]
     void selectionChanged();//4.1.2折线图的框选功能
+
+
+    void initTableWidget();//初始化图表
+    void initOneHourUrineTableWidget();//初始化一小时尿量图表
+
+    void setTableWidget(QString userIdStr);//写入图表
+    void setTableOneHourUrineTableWidget(QString userIdStr);//写入一小时尿量图表
+
 
 };
 #endif // MAINWINDOW_H

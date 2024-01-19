@@ -16,6 +16,16 @@ MainWindow::MainWindow(QWidget *parent)
     ui->CustomPlot_2->setInteractions(QCP::iRangeDrag|QCP::iRangeZoom| QCP::iSelectAxes | QCP::iSelectLegend | QCP::iSelectPlottables);
     ui->CustomPlot_2->legend->setSelectableParts(QCPLegend::spItems);
     connect(ui->CustomPlot_2, SIGNAL(selectionChangedByUser()), this, SLOT(selectionChanged()));
+
+    //游标功能
+    connect(ui->CustomPlot_2, SIGNAL(mouseMove(QMouseEvent*)), this,SLOT(showTracer(QMouseEvent*)));
+    m_TracerY = QSharedPointer<CurveTracer> (new CurveTracer(ui->CustomPlot_2, ui->CustomPlot_2->graph(0), DataTracer));
+    //m_TraserX = QSharedPointer<myTracer> (new myTracer(CustomPlot, CustomPlot->graph(0), XAxisTracer));
+
+
+    //表格类初始化
+    initTableWidget();
+
 }
 
 MainWindow::~MainWindow()
@@ -133,7 +143,7 @@ void MainWindow::drawOneHourUrineVolumeCurve(QString userIdStr)//绘制柱状图
     QSharedPointer<QCPAxisTickerText> textTicker(new QCPAxisTickerText);
     textTicker->addTicks(x, labels);
     xAxis->setTicker(textTicker);        // 设置为文字轴
-    xAxis->setTickLabelRotation(-60);     // 轴刻度文字旋转-60度
+    xAxis->setTickLabelRotation(60);     // 轴刻度文字旋转60度
     xAxis->setSubTicks(false);           // 不显示子刻度
     xAxis->setTickLength(0, 4);          // 轴内外刻度的长度分别是0,4,也就是轴内的刻度线不显示
     xAxis->setRange(0, x.size() + 1);               // 设置范围
@@ -150,7 +160,7 @@ void MainWindow::drawOneHourUrineVolumeCurve(QString userIdStr)//绘制柱状图
 
 void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
 {
-    if("clearCrave" == userIdStr)return;
+
 
     m_queryUrinaryBagWeightRecord = readUrinaryBagWeightRecord();
 
@@ -160,13 +170,26 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     int y_max = 0;
     while (m_queryUrinaryBagWeightRecord.next())
     {
+        if("clearCrave" == userIdStr)break;
         if(userIdStr == m_queryUrinaryBagWeightRecord.value(1).toString()){
             x.append(i + 1);
             y.append(m_queryUrinaryBagWeightRecord.value(2).toDouble());
             if(y_max < m_queryUrinaryBagWeightRecord.value(2).toDouble()){
                 y_max = m_queryUrinaryBagWeightRecord.value(2).toDouble();
             }
-            labels.append(m_queryUrinaryBagWeightRecord.value(2).toString());
+
+            QDateTime dateTime_half;
+            QString time = QString("%1").arg(m_queryUrinaryBagWeightRecord.value(4).toInt(), 6, 10, QLatin1Char('0'));
+            QDateTime dd = dateTime_half.fromString(m_queryUrinaryBagWeightRecord.value(3).toString() + time, "yyyyMMddhhmmss");
+            qint64 timestamp = dd.toMSecsSinceEpoch();
+            // 将时间戳转换为秒
+            int64_t seconds = timestamp / 1000;
+            // 创建日期时间对象
+            QDateTime dateTime = QDateTime::fromSecsSinceEpoch(seconds);
+            // 将日期时间对象转换为字符串（格式为 "yyyy-MM-dd HH:mm:ss"）
+            QString dateString = dateTime.toString("yyyy-MM-dd HH:mm:ss");
+
+            labels.append(dateString);
             i++;
         }
     }
@@ -179,13 +202,6 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     customPlot->legend->setVisible(true);
     //设定右上角图形标注的字体
     customPlot->legend->setFont(QFont("Helvetica", 9));
-    // QVector<double> x(101),y(101);
-    // //图形为y=x^3
-    // for(int i=0;i<101;i++)
-    // {
-    //     x[i] = i/5.0-10;
-    //     y[i] = x[i]*x[i]*x[i];//qPow(x[i],3)
-    // }
     //添加图形
     customPlot->addGraph();
     //设置画笔
@@ -193,52 +209,52 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     //设置画刷,曲线和X轴围成面积的颜色
     customPlot->graph(0)->setBrush(QBrush(QColor(255,255,0,50)));
     //设置右上角图形标注名称
-    customPlot->graph(0)->setName("曲线");
+    customPlot->graph(0)->setName("尿袋重量");
     //传入数据，setData的两个参数类型为double
     customPlot->graph(0)->setData(x,y);
 
-    // QVector<double> temp(20);
-    // QVector<double> temp1(20);
-    // //图形为y = 100*x;
-    // for(int i=0;i<20;i++)
-    // {
-    //     temp[i] = i;
-    //     temp1[i] = 10*i+10;
-    // }
-    //添加图形
-    //customPlot->addGraph();
-    //设置画笔
-    //customPlot->graph(1)->setPen(QPen(Qt::red));
-    //设置画刷,曲线和X轴围成面积的颜色
-    //customPlot->graph(1)->setBrush(QBrush(QColor(0,255,0)));
-    //传入数据
-    //customPlot->graph(1)->setData(temp,temp1);
+    // 设置一个文字类型的key轴，ticks决定了轴的范围，而labels决定了轴的刻度文字的显示
+    QSharedPointer<QCPAxisTickerText> textTicker(new QCPAxisTickerText);
 
-    /*-------------------------------------------*/
-    //画动态曲线时，传入数据采用addData，通过定时器多次调用，并在之后调用customPlot->replot();
-            //动态曲线可以通过另一种设置坐标的方法解决坐标问题：
-            //setRange ( double  position, double  size, Qt::AlignmentFlag  alignment  )
-    //参数分别为：原点，偏移量，对其方式，有兴趣的读者可自行尝试，欢迎垂询
-            /*-------------------------------------------*/
+    //x轴的标点不能太多, 绘图会导致卡顿, 这里判断只均分取20个点位
+    if(x.size()>20){
+        double x_slip = static_cast<double>(x.size()) / 19.0;
+        qDebug()<<"x_slip"<<x_slip;
+        for(int m =0; m<19; m++){
+            //qDebug()<<"1:"<<x_slip * m<<",2:"<<int(x_slip * m);
+            textTicker->addTick(x.at(int(x_slip * m)),labels.at(int(x_slip * m)));
+        }
+        textTicker->addTick(x.last(),labels.last());
+    }
 
-    //设置右上角图形标注名称
-    //customPlot->graph(1)->setName("直线");
+    customPlot->xAxis->setTicker(textTicker);
+    customPlot->xAxis->setTickLabelRotation(60);     // 轴刻度文字旋转60度
 
 
     QCPAxis *xAxis = customPlot->xAxis;
     QCPAxis *yAxis = customPlot->yAxis;
 
     //设置X轴文字标注
-    xAxis->setLabel("time");
+    xAxis->setLabel("datatime");
     //设置Y轴文字标注
-    yAxis->setLabel("temp/shidu");
+    yAxis->setLabel("weight");
     //设置X轴坐标范围
     xAxis->setRange(0,x.size() + 1);
     //设置Y轴坐标范围
-    yAxis->setRange(0, y_max);
+    yAxis->setRange(0, y_max*1.05);
     // yAxis->setRange(0, customPlot->height());
     //在坐标轴右侧和上方画线，和X/Y轴一起形成一个矩形
-    customPlot->axisRect()->setupFullAxesBox();
+    //customPlot->axisRect()->setupFullAxesBox();
+    QCPAxis *yAxis2 = ui->CustomPlot_2->yAxis2;
+
+    //设置右边的Y轴可见，默认为不可见
+    yAxis2->setVisible(true);
+    //设置右边Y轴的范围
+    yAxis2->setRange(0,10);
+
+
+    // wideAxisRect->setupFullAxesBox(true); //创建四个轴，默认上轴，右轴刻度值不显示
+    // wideAxisRect->axis(QCPAxis::atRight, 0)->setTickLabels(true); //右轴刻度值显示
 
 
 
@@ -281,6 +297,86 @@ void MainWindow::selectionChanged()//折线图右上角选中时候可以选中�
     }
 }
 
+void MainWindow::initTableWidget()
+{
+
+    m_oneHourTableWidetModel = new QStandardItemModel();
+
+    initOneHourUrineTableWidget();
+}
+
+void MainWindow::initOneHourUrineTableWidget()
+{
+
+
+    // 设置表头内容
+    QStringList headers;
+    headers <<  "开始时间" << "停止时间" << "重量" << "尿比重";
+
+        // 添加表头
+        m_oneHourTableWidetModel->setHorizontalHeaderLabels(headers);
+    QStandardItem *item = new QStandardItem();
+    item->setData("参数值", Qt::DisplayRole); // 将参数值设置到DisplayRole角色中
+    //m_oneHourTableWidetModel->setItem(-1, -1, item); // 设置到(0,0)的位置
+    //m_oneHourTableWidetModel->setVerticalHeaderItem(0,item);
+
+    // 设置列宽不可变动
+    QHeaderView* headerView = ui->tableView->horizontalHeader();
+    headerView->setSectionResizeMode(QHeaderView::Fixed);
+    headerView->setDefaultAlignment(Qt::AlignCenter); // 设置表头文本居中对齐
+    headerView->setSectionResizeMode(QHeaderView::Stretch); // 设置表头自适应宽度
+
+    // 设置最后一栏自适应长度
+    ui->tableView->horizontalHeader()->setStretchLastSection(true);
+
+    // 设置表头颜色为灰色
+    QString headerStyleSheet = "QHeaderView::section { background-color: grey; }";
+    ui->tableView->horizontalHeader()->setStyleSheet(headerStyleSheet);
+    ui->tableView->verticalHeader()->setStyleSheet(headerStyleSheet);
+
+    // 利用 setModel() 方法将数据模型与 QTableView 绑定
+    ui->tableView->setModel(m_oneHourTableWidetModel);
+}
+
+void MainWindow::setTableWidget(QString userIdStr)
+{
+    setTableOneHourUrineTableWidget(userIdStr);
+}
+
+void MainWindow::setTableOneHourUrineTableWidget(QString userIdStr)
+{
+    m_queryOneHourUrineVolume = readHourRecord();
+
+    int i = 0;
+    QVector<QString> startTime,stopTime,weight,urineSpecificGravity;
+    // QVector<double> weight;
+    // QVector<float> urineSpecificGravity;
+    while (m_queryOneHourUrineVolume.next())
+    {
+        if(userIdStr == m_queryOneHourUrineVolume.value(1).toString()){
+            startTime.append(m_queryOneHourUrineVolume.value(2).toString());
+            stopTime.append(m_queryOneHourUrineVolume.value(3).toString());
+            weight.append(m_queryOneHourUrineVolume.value(4).toString());
+            urineSpecificGravity.append(m_queryOneHourUrineVolume.value(5).toString());
+            i++;
+        }
+    }
+
+    m_oneHourTableWidetModel->setRowCount(i);
+    for(int m=0;m<i;m++){
+        m_oneHourTableWidetModel->setHeaderData(m,Qt::Vertical, m);
+        m_oneHourTableWidetModel->setItem(m, 0, new QStandardItem(startTime.at(m)));
+        m_oneHourTableWidetModel->setItem(m, 1, new QStandardItem(stopTime.at(m)));
+        m_oneHourTableWidetModel->setItem(m, 2, new QStandardItem(weight.at(m)));
+        m_oneHourTableWidetModel->setItem(m, 3, new QStandardItem(urineSpecificGravity.at(m)));
+        qDebug()<<"1_"<<weight.at(m)<<",2_"<<urineSpecificGravity.at(m);
+    }
+
+
+    // 利用 setModel() 方法将数据模型与 QTableView 绑定
+    ui->tableView->setModel(m_oneHourTableWidetModel);
+}
+
 
 void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
 {
@@ -289,11 +385,11 @@ void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
 
 
     m_userIdStr = userIdStr;
+    setTableWidget(userIdStr);
 
     //柱状图
     ui->CustomPlot->clearGraphs();
     ui->CustomPlot->clearPlottables();
-    ui->CustomPlot->replot();
     drawOneHourUrineVolumeCurve(userIdStr);
     ui->CustomPlot->replot();
 
@@ -301,7 +397,6 @@ void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
     //折线图
     ui->CustomPlot_2->clearGraphs();
     ui->CustomPlot_2->clearPlottables();
-    ui->CustomPlot_2->replot();
     drawUrinaryBagWeight(userIdStr);
     ui->CustomPlot_2->replot();
 
@@ -310,7 +405,8 @@ void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
 
 void MainWindow::on_resetBtn_clicked()//复位按钮(柱状图)  3.1.1
 {
-    on_clearBtn_clicked();
+    ui->CustomPlot->clearGraphs();
+    ui->CustomPlot->clearPlottables();
     drawOneHourUrineVolumeCurve(m_userIdStr);
     ui->CustomPlot->replot();
 }
@@ -327,10 +423,63 @@ void MainWindow::on_clearBtn_clicked()//清除按钮(柱状图)  3.1.2
     ui->CustomPlot->replot();
 }
 
+void MainWindow::showTracer(QMouseEvent *event)
+{
+    double x = ui->CustomPlot_2->xAxis->pixelToCoord(event->pos().x());
+    double y = 0;
+    QSharedPointer<QCPGraphDataContainer> tmpContainer;
+    if(ui->CustomPlot_2->graph(0) == nullptr)return;//添加曲线绘图之前要先屏蔽一下,防止空指针
+    tmpContainer = ui->CustomPlot_2->graph(0)->data();
+    //使用二分法快速查找所在点数据！！！敲黑板，下边这段是重点
+    int low = 0, high = tmpContainer->size();
+    while(high > low)
+    {
+        int middle = (low + high) / 2;
+        if(x < tmpContainer->constBegin()->mainKey() ||
+            x > (tmpContainer->constEnd()-1)->mainKey())
+            break;
+
+        if(x == (tmpContainer->constBegin() + middle)->mainKey())
+        {
+            y = (tmpContainer->constBegin() + middle)->mainValue();
+            break;
+        }
+        if(x > (tmpContainer->constBegin() + middle)->mainKey())
+        {
+            low = middle;
+        }
+        else if(x < (tmpContainer->constBegin() + middle)->mainKey())
+        {
+            high = middle;
+        }
+        if(high - low <= 1)
+        {   //差值计算所在位置数据
+            y = (tmpContainer->constBegin()+low)->mainValue() + ( (x - (tmpContainer->constBegin() + low)->mainKey()) *
+                                                                   ((tmpContainer->constBegin()+high)->mainValue() - (tmpContainer->constBegin()+low)->mainValue()) ) /
+                                                                      ((tmpContainer->constBegin()+high)->mainKey() - (tmpContainer->constBegin()+low)->mainKey());
+            break;
+        }
+
+    }
+    //qDebug()<<"y="<<y;
+    //显示x轴的鼠标动态坐标
+    //m_TraserX->updatePosition(x, 0);
+    //m_TraserX->setText(QString::number(x, 'f', 0));
+    //显示y轴的鼠标动态坐标，缺点无法定位xy所以无法附加单位，附加单位仍需继续修改setText传参
+    //m_TracerY->updatePosition(x, y);
+    //m_TracerY->setText(QString::number(y, 'f', 2));
+    //由原来的x，y分别显示改为x，y显示在一起，xy单位直接在setText中设置好
+    m_TracerY->updatePosition(x, y);
+    m_TracerY->setText(QString::number(x, 'f', 0),QString::number(y, 'f', 2));//x轴取整数，y轴保留两位小数
+    ui->CustomPlot_2->replot();
+
+}
+
 
 void MainWindow::on_resetBtn_2_clicked()//复位按钮(折线图)    4.1.4
 {
-    on_clearBtn_2_clicked();
+    ui->CustomPlot_2->clearGraphs();
+    ui->CustomPlot_2->clearPlottables();
     drawUrinaryBagWeight(m_userIdStr);
     ui->CustomPlot_2->replot();
 }
