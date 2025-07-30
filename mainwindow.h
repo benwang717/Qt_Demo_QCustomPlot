@@ -3,7 +3,7 @@
 
 
 /**
- * @brief QCustomPlot功能接口练习
+ * @brief QCustomPlot(Version: 2.1.1) 功能接口练习
  * @author 王宾
  * @date 创建时间 2024-1-5
  * @version V1.0.0.2
@@ -41,7 +41,12 @@
             4.1.4折线图的复位功能(窗口自适应)
             4.1.5折线图的清空功能
 
-    5.动态绘图(待补充),根据动态接口返回的数据,实时变化的显示绘图曲线
+    5.动态绘图,使用正弦函数结合计时器,实时变化的显示绘图曲线
+    (暂不使用网络接口)
+        5.1需要实现的功能
+            5.1.1按钮点击曲线开始运动
+            5.1.2点击停止按钮,曲线停止运动
+            5.1.3添加游标,可选择横轴绝对位置, 根据横轴绝对位置动态显示纵轴坐标
 
 
  *
@@ -53,6 +58,11 @@
 #include <QMainWindow>
 #include <QSqlQuery>
 #include <qcustomplot.h>
+#include <QDebug>
+#define QDBG qDebug()<< __FILE__ << __FUNCTION__ << __LINE__ <<
+
+
+#define TIMER_COUNT_PERIOD 550 //计时周期
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -68,22 +78,6 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-private slots:
-    void on_selectDatabaseBtn_clicked();
-
-    void on_UserIdComboBox_currentTextChanged(const QString &userIdStr);
-
-    void on_resetBtn_clicked();//复位按钮(柱状图)  3.1.1
-
-    void on_clearBtn_clicked();//清除按钮(柱状图)  3.1.2
-
-    void showTracer(QMouseEvent* event);//游标功能    4.1.3
-
-    void on_resetBtn_2_clicked();//复位按钮(折线图)    4.1.4
-
-    void on_clearBtn_2_clicked();//清除按钮(折线图)    4.1.5
-
-
 private:
     Ui::MainWindow *ui;
     QSqlDatabase m_database;//初始化数据库
@@ -91,8 +85,15 @@ private:
     QString m_userIdStr;//获取数据库表中用户的id
     QSharedPointer<CurveTracer> m_TraserX, m_TracerY;
     QStandardItemModel *m_oneHourTableWidetModel; //一小时数据的图表
+    QTimer* m_DynamicCurveTimer;
 
-
+private:
+    void init();
+    void initDatabase();
+    void initPlot();
+    void initTableWidget();//初始化图表
+    void initTimer();
+    void initConnections();
     void initDatabase(QString path);//初始化数据库
     QSqlQuery readUserForm();//读取用户表
     QSqlQuery readHourRecord();//读取一小时记录表
@@ -100,14 +101,25 @@ private:
 
     void drawOneHourUrineVolumeCurve(QString userIdStr);//绘制一小时尿流率柱状图 [3.]
     void drawUrinaryBagWeight(QString userIdStr);//绘制尿袋重量折线图 [4.]
-    void selectionChanged();//4.1.2折线图的框选功能
 
-
-    void initTableWidget();//初始化图表
     void initOneHourUrineTableWidget();//初始化一小时尿量图表
 
     void setTableWidget(QString userIdStr);//写入图表
     void setTableOneHourUrineTableWidget(QString userIdStr);//写入一小时尿量图表
+
+private slots:
+
+    void selectDatabaseBtn_slot();
+    void UserIdComboBox_currentTextChanged_slot(const QString &userIdStr);
+    void resetBtn_slot();//复位按钮(柱状图)  3.1.1
+    void clearBtn_slot();//清除按钮(柱状图)  3.1.2
+    void selectionChanged();//4.1.2折线图的框选功能
+    void showTracer(QMouseEvent* event);//游标功能  4.1.3
+    void resetBtn_2_slot();//复位按钮(折线图)    4.1.4
+    void clearBtn_2_slot();//清除按钮(折线图)    4.1.5
+    void showDynamicCurveBtn_slot();//动态曲线展示  5.1.
+    void stopDynamicCurveBtn_slot();//动态曲线停止  5.1.2
+    void slotTimeout();//动态曲线计时器
 
 
 };

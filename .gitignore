@@ -364,3 +364,4 @@ FodyWeavers.xsd
 
 # 忽略SVN相关文件和文件夹
 .svn/
+build/

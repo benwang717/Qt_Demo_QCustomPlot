@@ -6,26 +6,7 @@ MainWindow::MainWindow(QWidget *parent)
     , ui(new Ui::MainWindow)
 {
     ui->setupUi(this);
-
-    m_database = QSqlDatabase::addDatabase("QSQLITE");
-
-
-
-    ui->CustomPlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectPlottables);
-    //设置基本坐标轴（左侧Y轴和下方X轴）可拖动、可缩放、曲线可选、legend可选、设置伸缩比例，使所有图例可见
-    ui->CustomPlot_2->setInteractions(QCP::iRangeDrag|QCP::iRangeZoom| QCP::iSelectAxes | QCP::iSelectLegend | QCP::iSelectPlottables);
-    ui->CustomPlot_2->legend->setSelectableParts(QCPLegend::spItems);
-    connect(ui->CustomPlot_2, SIGNAL(selectionChangedByUser()), this, SLOT(selectionChanged()));
-
-    //游标功能
-    connect(ui->CustomPlot_2, SIGNAL(mouseMove(QMouseEvent*)), this,SLOT(showTracer(QMouseEvent*)));
-    m_TracerY = QSharedPointer<CurveTracer> (new CurveTracer(ui->CustomPlot_2, ui->CustomPlot_2->graph(0), DataTracer));
-    //m_TraserX = QSharedPointer<myTracer> (new myTracer(CustomPlot, CustomPlot->graph(0), XAxisTracer));
-
-
-    //表格类初始化
-    initTableWidget();
-
+    init();
 }
 
 MainWindow::~MainWindow()
@@ -33,19 +14,54 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-void MainWindow::on_selectDatabaseBtn_clicked()
+void MainWindow::init()
 {
-    QString toOpen = QFileDialog::getOpenFileName(this, tr("Choose a database"), "", "*.db");
-    initDatabase(toOpen);
-    m_queryUser = readUserForm();
-    int i = 0;
-    while (m_queryUser.next())
-    {
-        QString str = m_queryUser.value(0).toString();
-        ui->UserIdComboBox->addItem(str, i);
-        i++;
-    }
+    initDatabase();
+
+    initPlot();
+
+    //表格类初始化
+    initTableWidget();
+
+    initTimer();
+
+    initConnections();
 }
+
+void MainWindow::initDatabase()
+{
+    m_database = QSqlDatabase::addDatabase("QSQLITE");
+}
+
+void MainWindow::initPlot()
+{
+    ui->CustomPlot->setInteractions(QCP::iRangeDrag | QCP::iRangeZoom | QCP::iSelectPlottables);
+    //设置基本坐标轴（左侧Y轴和下方X轴）可拖动、可缩放、曲线可选、legend可选、设置伸缩比例，使所有图例可见
+    ui->CustomPlot_2->setInteractions(QCP::iRangeDrag|QCP::iRangeZoom| QCP::iSelectAxes | QCP::iSelectLegend | QCP::iSelectPlottables);
+    ui->CustomPlot_2->legend->setSelectableParts(QCPLegend::spItems);
+    connect(ui->CustomPlot_2, &QCustomPlot::selectionChangedByUser, this, &MainWindow::selectionChanged);
+
+    //游标功能
+    connect(ui->CustomPlot_2, SIGNAL(mouseMove(QMouseEvent*)), this,SLOT(showTracer(QMouseEvent*)));
+    m_TracerY = QSharedPointer<CurveTracer> (new CurveTracer(ui->CustomPlot_2, ui->CustomPlot_2->graph(0), DataTracer));
+    //m_TraserX = QSharedPointer<myTracer> (new myTracer(CustomPlot, CustomPlot->graph(0), XAxisTracer));
+}
+
+void MainWindow::initTableWidget()
+{
+    m_oneHourTableWidetModel = new QStandardItemModel();
+
+    initOneHourUrineTableWidget();
+}
+
+void MainWindow::initTimer()
+{
+    //动态曲线计时器初始化
+    m_DynamicCurveTimer = new QTimer(this);
+    connect(m_DynamicCurveTimer,SIGNAL(timeout()),this,SLOT(slotTimeout()));
+}
+
+
 
 void MainWindow::initDatabase(QString path)
 {
@@ -58,12 +74,12 @@ void MainWindow::initDatabase(QString path)
     //看是否能正确打开
     if (!m_database.open())
     {
-        //qDebug()<<database.lastError().text();
-        qDebug() << "数据库打开失败";
+        //QDBG database.lastError().text();
+        QDBG "数据库打开失败";
         return;
     }
     else {
-        qDebug() << "数据库打开成功！";
+        QDBG "数据库打开成功！";
     }
 }
 
@@ -160,8 +176,6 @@ void MainWindow::drawOneHourUrineVolumeCurve(QString userIdStr)//绘制柱状图
 
 void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
 {
-
-
     m_queryUrinaryBagWeightRecord = readUrinaryBagWeightRecord();
 
     int i = 0;
@@ -217,11 +231,12 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
     QSharedPointer<QCPAxisTickerText> textTicker(new QCPAxisTickerText);
 
     //x轴的标点不能太多, 绘图会导致卡顿, 这里判断只均分取20个点位
+    ///2024-7-9 备注:这种方法就无法适配数据大量的时候的时间显示, 最好的方式根据既有的时间格式通过转换时间戳的方式引用时间轴
     if(x.size()>20){
         double x_slip = static_cast<double>(x.size()) / 19.0;
-        qDebug()<<"x_slip"<<x_slip;
+        QDBG "x_slip"<<x_slip;
         for(int m =0; m<19; m++){
-            //qDebug()<<"1:"<<x_slip * m<<",2:"<<int(x_slip * m);
+            //QDBG "1:"<<x_slip * m<<",2:"<<int(x_slip * m);
             textTicker->addTick(x.at(int(x_slip * m)),labels.at(int(x_slip * m)));
         }
         textTicker->addTick(x.last(),labels.last());
@@ -263,8 +278,6 @@ void MainWindow::drawUrinaryBagWeight(QString userIdStr)//绘制折线图
 
 void MainWindow::selectionChanged()//折线图右上角选中时候可以选中对应曲线
 {
-    qDebug()<<"__FUNCTION__"<<__FUNCTION__;
-
     QCustomPlot* customPlot = ui->CustomPlot_2;
 
     if (customPlot->xAxis->selectedParts().testFlag(QCPAxis::spAxis) || customPlot->xAxis->selectedParts().testFlag(QCPAxis::spTickLabels) ||
@@ -295,14 +308,6 @@ void MainWindow::selectionChanged()//折线图右上角选中时候可以选中�
             //graph->setSelected(true);
         }
     }
-}
-
-void MainWindow::initTableWidget()
-{
-
-    m_oneHourTableWidetModel = new QStandardItemModel();
-
-    initOneHourUrineTableWidget();
 }
 
 void MainWindow::initOneHourUrineTableWidget()
@@ -369,7 +374,7 @@ void MainWindow::setTableOneHourUrineTableWidget(QString userIdStr)
         m_oneHourTableWidetModel->setItem(m, 1, new QStandardItem(stopTime.at(m)));
         m_oneHourTableWidetModel->setItem(m, 2, new QStandardItem(weight.at(m)));
         m_oneHourTableWidetModel->setItem(m, 3, new QStandardItem(urineSpecificGravity.at(m)));
-        qDebug()<<"1_"<<weight.at(m)<<",2_"<<urineSpecificGravity.at(m);
+        QDBG "1_"<<weight.at(m)<<",2_"<<urineSpecificGravity.at(m);
     }
 
 
@@ -377,12 +382,24 @@ void MainWindow::setTableOneHourUrineTableWidget(QString userIdStr)
     ui->tableView->setModel(m_oneHourTableWidetModel);
 }
 
-
-void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
+void MainWindow::selectDatabaseBtn_slot()
 {
 
-    qDebug()<<__FUNCTION__<<userIdStr;
+    QString toOpen = QFileDialog::getOpenFileName(this, tr("Choose a database"), "", "*.db");
+    initDatabase(toOpen);
+    m_queryUser = readUserForm();
+    int i = 0;
+    while (m_queryUser.next())
+    {
+        QString str = m_queryUser.value(0).toString();
+        ui->UserIdComboBox->addItem(str, i);
+        i++;
+    }
+}
 
+void MainWindow::UserIdComboBox_currentTextChanged_slot(const QString &userIdStr)
+{
+    QDBG userIdStr;
 
     m_userIdStr = userIdStr;
     setTableWidget(userIdStr);
@@ -399,11 +416,9 @@ void MainWindow::on_UserIdComboBox_currentTextChanged(const QString &userIdStr)
     ui->CustomPlot_2->clearPlottables();
     drawUrinaryBagWeight(userIdStr);
     ui->CustomPlot_2->replot();
-
 }
 
-
-void MainWindow::on_resetBtn_clicked()//复位按钮(柱状图)  3.1.1
+void MainWindow::resetBtn_slot()
 {
     ui->CustomPlot->clearGraphs();
     ui->CustomPlot->clearPlottables();
@@ -411,9 +426,7 @@ void MainWindow::on_resetBtn_clicked()//复位按钮(柱状图)  3.1.1
     ui->CustomPlot->replot();
 }
 
-
-
-void MainWindow::on_clearBtn_clicked()//清除按钮(柱状图)  3.1.2
+void MainWindow::clearBtn_slot()
 {
     QString nullStr = "clearCrave";
     ui->CustomPlot->clearGraphs();
@@ -461,7 +474,7 @@ void MainWindow::showTracer(QMouseEvent *event)
         }
 
     }
-    //qDebug()<<"y="<<y;
+    //QDBG "y="<<y;
     //显示x轴的鼠标动态坐标
     //m_TraserX->updatePosition(x, 0);
     //m_TraserX->setText(QString::number(x, 'f', 0));
@@ -472,11 +485,9 @@ void MainWindow::showTracer(QMouseEvent *event)
     m_TracerY->updatePosition(x, y);
     m_TracerY->setText(QString::number(x, 'f', 0),QString::number(y, 'f', 2));//x轴取整数，y轴保留两位小数
     ui->CustomPlot_2->replot();
-
 }
 
-
-void MainWindow::on_resetBtn_2_clicked()//复位按钮(折线图)    4.1.4
+void MainWindow::resetBtn_2_slot()
 {
     ui->CustomPlot_2->clearGraphs();
     ui->CustomPlot_2->clearPlottables();
@@ -484,8 +495,7 @@ void MainWindow::on_resetBtn_2_clicked()//复位按钮(折线图)    4.1.4
     ui->CustomPlot_2->replot();
 }
 
-
-void MainWindow::on_clearBtn_2_clicked()//清除按钮(折线图)    4.1.5
+void MainWindow::clearBtn_2_slot()
 {
     QString nullStr = "clearCrave";
     ui->CustomPlot_2->clearGraphs();
@@ -495,3 +505,52 @@ void MainWindow::on_clearBtn_2_clicked()//清除按钮(折线图)    4.1.5
     ui->CustomPlot_2->replot();
 }
 
+void MainWindow::showDynamicCurveBtn_slot()//动态曲线展示  5.1.1
+{
+    if(!m_DynamicCurveTimer->isActive())
+    {
+        m_DynamicCurveTimer->start(50);
+    }
+}
+
+void MainWindow::stopDynamicCurveBtn_slot()//动态曲线停止  5.1.2
+{
+    if(m_DynamicCurveTimer->isActive())
+    {
+        m_DynamicCurveTimer->stop();
+    }
+}
+
+void MainWindow::slotTimeout()
+{
+    static QTime time(QTime::currentTime());
+    // calculate two new data points:
+    double key = time.elapsed()/1000.0; // time elapsed since start of demo, in seconds
+    static double lastPointKey = 0;
+    if (key-lastPointKey > 0.002) // at most add point every 2 ms
+    {
+        // add data to lines
+        double vv1 = qSin(key)+qrand()/(double)RAND_MAX*1*qSin(key/0.3843);
+        double vv2 = qCos(key)+qrand()/(double)RAND_MAX*0.5*qSin(key/0.4364);
+        QMap<int,double> mapData;
+        mapData.insert(1,vv1);
+        mapData.insert(2,vv2);
+        // m_dock->AddData(key,mapData);
+        ui->CustomPlot_3->addGraph();
+        lastPointKey = key;
+    }
+}
+
+
+
+void MainWindow::initConnections()
+{
+    connect(ui->selectDatabaseBtn,&QPushButton::clicked,this,&MainWindow::selectDatabaseBtn_slot);
+    connect(ui->resetBtn,&QPushButton::clicked,this,&MainWindow::resetBtn_slot);
+    connect(ui->clearBtn,&QPushButton::clicked,this,&MainWindow::clearBtn_slot);
+    connect(ui->resetBtn_2,&QPushButton::clicked,this,&MainWindow::resetBtn_2_slot);
+    connect(ui->clearBtn_2,&QPushButton::clicked,this,&MainWindow::clearBtn_2_slot);
+    connect(ui->showDynamicCurveBtn,&QPushButton::clicked,this,&MainWindow::showDynamicCurveBtn_slot);
+    connect(ui->stopDynamicCurveBtn,&QPushButton::clicked,this,&MainWindow::stopDynamicCurveBtn_slot);
+    connect(ui->UserIdComboBox,&QComboBox::currentTextChanged,this,&MainWindow::UserIdComboBox_currentTextChanged_slot);
+}
